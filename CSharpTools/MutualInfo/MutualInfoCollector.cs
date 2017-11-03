@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Text;
 using System.Xml;
@@ -17,6 +19,9 @@ class MutualInfoCollector
     List<string> all_words = new List<string>();
     int RegisterWord(string word)
     {
+        Contract.Requires(word2freq!=null);
+        Debug.Assert(!string.IsNullOrEmpty(word));
+
         int index = 0;
         if (!word2index.TryGetValue(word, out index))
         {
@@ -319,7 +324,10 @@ class MutualInfoCollector
         return;
     }
 
-    int MAX_IN_BUF = 1000000;
+    /// <summary>
+    /// Размер буфера для накопления N-грамм перед слиянием с основным списком.
+    /// </summary>
+    public int MAX_IN_BUF { get; set; } = 1000000;
 
     // --------------------------------------------------
     void StoreWordPairLink(int max_pair_count, string word1, string word2, bool linked)

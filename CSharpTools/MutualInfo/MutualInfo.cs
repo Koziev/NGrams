@@ -21,6 +21,7 @@ class CollectMutualInfo
         bool collect_fours = false;
         int N_MAX_NGRAMS = int.MaxValue;
         int WINDOW = 5; // макс. расстояние между словами.
+        double FADING = 1.0; // затухание влияния слов на удалении от опорного слова
         int MAX_SENT_COUNT = int.MaxValue; // макс. число обрабатываемых предложений
 
         IBaseSegmenter segmenter = null;
@@ -44,6 +45,11 @@ class CollectMutualInfo
             else if (args[i] == "-win")
             {
                 WINDOW = int.Parse(args[i + 1]);
+                i++;
+            }
+            else if (args[i]== "-fading")
+            {
+                FADING = double.Parse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture);
                 i++;
             }
             else if (args[i] == "-i")
@@ -111,14 +117,21 @@ class CollectMutualInfo
             tokenizer = new Tokenizer();
         }
 
+        if( segmenter==null )
+        {
+            segmenter = new Segmenter();
+        }
+
         #endregion CommandLineOptions
 
         #region CollectingTheStat
 
         MutualInfoCollector ngrams = new MutualInfoCollector();
 
+        long sent_count = 0;
+
+/*
         long total_sent_count = 0;
-        int sent_count = 0;
 
         // для удобства визуального мониторинга подсчитаем общее кол-во предложений в обрабатываемом корпусе.
         Console.WriteLine("Counting the total number of lines in source texts...");
@@ -135,12 +148,12 @@ class CollectMutualInfo
             }
         }
         Console.WriteLine("total_sent_count={0}", total_sent_count);
-
+*/
 
         // Теперь сбор статистики
         foreach (string text_path in files)
         {
-            Console.WriteLine("Processing {0}...", text_path);
+            Console.WriteLine($"Processing {text_path}...");
 
             using (System.IO.StreamReader rdr = new System.IO.StreamReader(text_path))
             {
@@ -167,7 +180,7 @@ class CollectMutualInfo
                                 int m2 = i1 + WINDOW + 1;
                                 for (int i2 = i1 + 1; i2 < words.Length && i2 < m2; ++i2)
                                 {
-                                    float proximity = (float)Math.Exp(-Math.Abs(i2 - i1 - 1));
+                                    float proximity = (float)Math.Exp( FADING * -Math.Abs(i2 - i1 - 1) );
                                     ngrams.StorePairProximity(N_MAX_NGRAMS, words[i1], words[i2], proximity);
                                 }
                             }
@@ -176,14 +189,14 @@ class CollectMutualInfo
                         {
                             for (int i1 = 0; i1 < nword - 1; ++i1)
                             {
-                                int m2 = i1 + WINDOW + 1;
-                                for (int i2 = i1 + 1; i2 < nword && i2 < m2; ++i2)
+                                int m2 = Math.Min( nword, i1 + WINDOW + 1 );
+                                for (int i2 = i1 + 1; i2 < m2; ++i2)
                                 {
-                                    int m3 = i2 + WINDOW + 1;
-                                    for (int i3 = i2 + 1; i3 < nword && i3 < m3; ++i3)
+                                    int m3 = Math.Min( nword, i2 + WINDOW + 1 );
+                                    for (int i3 = i2 + 1; i3 < m3; ++i3)
                                     {
                                         float dist = Math.Abs(i2 - i1) + Math.Abs(i3 - i2) - 2;
-                                        float proximity = (float)Math.Exp(-dist);
+                                        float proximity = (float)Math.Exp(-FADING*dist);
                                         ngrams.StoreTripleProximity(N_MAX_NGRAMS, words[i1], words[i2], words[i3], proximity);
                                     }
                                 }
@@ -203,7 +216,7 @@ class CollectMutualInfo
                                         for (int i4 = i3 + 1; i4 < nword && i4 < m4; ++i4)
                                         {
                                             float dist = Math.Abs(i2 - i1) + Math.Abs(i3 - i2) + Math.Abs(i4 - i3) - 3;
-                                            float proximity = (float)Math.Exp(-dist);
+                                            float proximity = (float)Math.Exp(-FADING*dist);
                                             ngrams.StoreFourProximity(N_MAX_NGRAMS, words[i1], words[i2], words[i3], words[i4], proximity);
                                         }
                                     }
@@ -217,23 +230,23 @@ class CollectMutualInfo
                         {
                             if (collect_pairs)
                             {
-                                Console.Write("sent_count={0}/{1}\t\tpairs={2}\r",
+                                Console.Write("sent_count={0}\t\tpairs={1}\r",
                                     sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
-                                    total_sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
+                                    //total_sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
                                     ngrams.GetPairsCount().ToString("n0", System.Globalization.CultureInfo.InvariantCulture));
                             }
                             else if (collect_triples)
                             {
-                                Console.Write("sent_count={0}/{1}\t\ttriples={2}\r",
+                                Console.Write("sent_count={0}\t\ttriples={1}\r",
                                     sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
-                                    total_sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
+                                    //total_sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
                                     ngrams.GetTriplesCount().ToString("n0", System.Globalization.CultureInfo.InvariantCulture));
                             }
                             else if (collect_fours)
                             {
-                                Console.Write("sent_count={0}/{1}\t\tquadruples={2}\r",
+                                Console.Write("sent_count={0}\t\tquadruples={1}\r",
                                     sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
-                                    total_sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
+                                    //total_sent_count.ToString("#,##0", System.Globalization.CultureInfo.InvariantCulture),
                                     ngrams.GetFoursomeCount().ToString("n0", System.Globalization.CultureInfo.InvariantCulture));
                             }
 
@@ -269,7 +282,7 @@ class CollectMutualInfo
             Console.WriteLine("");
         }
 
-        Console.WriteLine("\nAll treebanks are processed.");
+        Console.WriteLine("\nAll treebanks have been processed.");
 
         #endregion CollectingTheStat
 
@@ -300,6 +313,3 @@ class CollectMutualInfo
         return;
     }
 }
-
-
-
